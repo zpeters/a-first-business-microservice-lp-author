@@ -20,16 +20,25 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, anyhow::Er
 
             let rates_data: &[u8] = include_bytes!("rates_by_zipcode.csv");
             let mut rdr = Reader::from_reader(rates_data);
-            for result in rdr.records() {
-                let record = result?;
-                // dbg!("{:?}", record.clone());
-                if str::from_utf8(&post_body).unwrap().eq(&record[0]) {
-                    rate = record[1].to_string();
-                    break;
-                }
-            }
+            let requested_zipcode = str::from_utf8(&post_body).unwrap();
 
-            Ok(Response::new(Body::from(rate)))
+            let found_zips: Vec<_>   = rdr
+                .records()
+                .filter(|i| requested_zipcode.eq(&i.as_ref().unwrap()[0]))
+                .collect();
+
+
+            if found_zips.len() == 1 {
+                let found_zip = found_zips.first().unwrap();
+                let zip = found_zip.as_ref().unwrap();
+                rate = zip[1].to_string();
+                Ok(Response::new(Body::from(rate)))
+
+            } else {
+                let mut not_found = Response::default();
+                *not_found.status_mut() = StatusCode::NOT_FOUND;
+                Ok(not_found)
+            }
         }
 
         // Return the 404 Not Found for other routes.
